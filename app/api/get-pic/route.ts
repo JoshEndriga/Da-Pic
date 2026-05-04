@@ -1,4 +1,4 @@
-import { db } from "@vercel/postgres";
+import { neon } from "@neondatabase/serverless";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
@@ -10,14 +10,16 @@ export async function GET(request: Request) {
   }
 
   try {
-    const client = await db.connect();
+    // Initialize Neon with your existing POSTGRES_URL
+    const sql = neon(process.env.POSTGRES_URL!);
 
-    // 1. Calculate the cutoff time (24 hours ago from right now)
+    // 1. Calculate the cutoff time (24 hours ago)
     const twentyFourHoursAgo = new Date();
     twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
 
-    // 2. Query the database for a matching code that is NOT older than 24 hours
-    const { rows } = await client.sql`
+    // 2. Query the database using the new Neon syntax
+    // Neon handles the template literal safely to prevent SQL injection
+    const rows = await sql`
       SELECT url FROM pics 
       WHERE code = ${code} 
       AND created_at > ${twentyFourHoursAgo.toISOString()}
@@ -25,7 +27,6 @@ export async function GET(request: Request) {
     `;
 
     if (rows.length === 0) {
-      // If the code is old or doesn't exist, we return a 404
       return NextResponse.json({ error: "Code expired or not found" }, { status: 404 });
     }
 

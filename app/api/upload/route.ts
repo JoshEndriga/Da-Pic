@@ -1,5 +1,5 @@
 import { put } from "@vercel/blob";
-import { db } from "@vercel/postgres";
+import { neon } from "@neondatabase/serverless";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -12,23 +12,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing data" }, { status: 400 });
     }
 
-    // Calculate expiration date (24 hours from now)
+    // 1. Calculate expiration date (Exactly 24 hours from now)
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24);
 
-    // 1. Upload the image to Vercel Blob with an expiration date
+    // 2. Upload the image to Vercel Blob
     const blob = await put(filename, request.body, {
       access: "public",
       addRandomSuffix: true,
-      expiresAt: expiresAt, // The file will be automatically deleted after 24 hours
+      expiresAt: expiresAt, // File self-destructs in 24h
     });
 
-    // 2. Save the Code and URL to Postgres
-    const client = await db.connect();
+    // 3. Save to Postgres using the modern Neon driver
+    const sql = neon(process.env.POSTGRES_URL!);
     
-    // We include the 'created_at' explicitly if your table uses it, 
-    // but the DB usually handles this automatically.
-    await client.sql`
+    await sql`
       INSERT INTO pics (code, url)
       VALUES (${code}, ${blob.url});
     `;
